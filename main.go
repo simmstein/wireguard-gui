@@ -23,7 +23,15 @@ type Config struct {
 	File string
 }
 
+var red color.RGBA
+var green color.RGBA
+var orange color.RGBA
+
 func main() {
+	red = color.RGBA{R: 156, G: 21, B: 21}
+	green = color.RGBA{R: 47, G: 156, B: 17}
+	orange = color.RGBA{R: 156, G: 106, B: 25}
+
 	application := app.New()
 	window := application.NewWindow("Wireguard GUI (deblan)")
 	configs := []Config{}
@@ -86,13 +94,13 @@ func main() {
 func WgUp(config Config, notice *canvas.Text) {
 	notice.Hidden = false
 	notice.Text = fmt.Sprintf("Interface is starting")
-	notice.Color = color.RGBA{R: 200, G: 165, B: 76}
+	notice.Color = orange
 	notice.Refresh()
 
 	exec.Command("wg-quick", "up", config.Name).Output()
 
 	notice.Text = fmt.Sprintf("Interface is up")
-	notice.Color = color.RGBA{R: 111, G: 200, B: 72}
+	notice.Color = green
 	notice.Refresh()
 
 	go func() {
@@ -107,13 +115,13 @@ func WgDown(config Config, notice *canvas.Text) {
 
 	notice.Hidden = false
 	notice.Text = fmt.Sprintf("Interface is stopping")
-	notice.Color = color.RGBA{R: 200, G: 165, B: 76}
+	notice.Color = orange
 	notice.Refresh()
 
 	exec.Command("wg-quick", "down", config.Name).Output()
 
 	notice.Text = fmt.Sprintf("Interface is down")
-	notice.Color = color.RGBA{R: 111, G: 200, B: 72}
+	notice.Color = green
 	notice.Refresh()
 
 	go func() {
@@ -155,15 +163,20 @@ func createTab(config Config) *fyne.Container {
 		WgRestart(config, notice)
 	})
 
+	buttonStartWrapper := container.NewMax(canvas.NewRectangle(green), buttonStart)
+	buttonStopWrapper := container.NewMax(canvas.NewRectangle(red), buttonStop)
+	buttonRestartWrapper := container.NewMax(canvas.NewRectangle(orange), buttonRestart)
+
 	top := container.New(
 		layout.NewVBoxLayout(),
 		r1,
 		container.New(
 			layout.NewHBoxLayout(),
-			buttonStart,
-			buttonStop,
-			buttonRestart,
 			notice,
+			layout.NewSpacer(),
+			buttonStartWrapper,
+			buttonStopWrapper,
+			buttonRestartWrapper,
 		),
 		r2,
 	)
@@ -194,11 +207,11 @@ func createTab(config Config) *fyne.Container {
 			if err != nil {
 				log.Println(err)
 				notice.Text = fmt.Sprintf("Error while updating: %s", err)
-				notice.Color = color.RGBA{R: 200, G: 68, B: 68}
+				notice.Color = red
 				notice.Refresh()
 			} else {
 				notice.Text = fmt.Sprintf("Configuration updated")
-				notice.Color = color.RGBA{R: 111, G: 200, B: 72}
+				notice.Color = green
 
 				go func() {
 					time.Sleep(2 * time.Second)
