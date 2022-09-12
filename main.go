@@ -202,6 +202,8 @@ func createTab(config Config) *fyne.Container {
 		OnSubmit: func() {
 			notice.Hidden = false
 			configuration := fmt.Sprintf("%s\n", textareaConfiguration.Text)
+			configuration = strings.TrimSpace(configuration)
+			textareaConfiguration.Text = configuration
 			err := os.WriteFile(config.File, []byte(configuration), 600)
 
 			if err != nil {
