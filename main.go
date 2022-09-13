@@ -130,13 +130,13 @@ func updateNotice(notice *canvas.Text, text string, c color.Color, isVisible, is
 	log.Println(text)
 }
 
-func WgUp(config Config, notice *canvas.Text) {
+func wgUp(config Config, notice *canvas.Text) {
 	updateNotice(notice, fmt.Sprintf("Interface is starting"), orange, true, false)
 	exec.Command("wg-quick", "up", config.Name).Output()
 	updateNotice(notice, fmt.Sprintf("Interface is up"), green, true, true)
 }
 
-func WgDown(config Config, notice *canvas.Text) {
+func wgDown(config Config, notice *canvas.Text) {
 	updateNotice(notice, fmt.Sprintf("Interface is stopping"), orange, true, false)
 	exec.Command("wg-quick", "down", config.Name).Output()
 	updateNotice(notice, fmt.Sprintf("Interface is down"), green, true, true)
@@ -148,9 +148,9 @@ func WgDown(config Config, notice *canvas.Text) {
 	}()
 }
 
-func WgRestart(config Config, notice *canvas.Text) {
-	WgDown(config, notice)
-	WgUp(config, notice)
+func wgRestart(config Config, notice *canvas.Text) {
+	wgDown(config, notice)
+	wgUp(config, notice)
 }
 
 func lintConfiguration(configuration string) string {
@@ -209,15 +209,15 @@ func createTab(config Config) *fyne.Container {
 	notice := createNotice()
 
 	buttonStart := createColoredButton("Start", green, func() {
-		WgUp(config, notice)
+		wgUp(config, notice)
 	})
 
 	buttonStop := createColoredButton("Stop", red, func() {
-		WgDown(config, notice)
+		wgDown(config, notice)
 	})
 
 	buttonRestart := createColoredButton("Restart", orange, func() {
-		WgRestart(config, notice)
+		wgRestart(config, notice)
 	})
 
 	top := container.New(
