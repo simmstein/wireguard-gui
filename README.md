@@ -7,7 +7,7 @@ Wireguard GUI is a graphic tool that helps you to edit existing confs of Wiregua
 
 ## Requirements
 
-Wireguard GUI reads `/etc/wireguard/*.conf` and use `wg-quick` to manage interfaces.
+Wireguard GUI reads `/etc/wireguard/*.conf` and uses `wg-quick` to manage interfaces.
 
 ## Installation
 
