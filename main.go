@@ -171,6 +171,7 @@ func updateConfigFile(config Config, content string) error {
 
 func createTextarea() *widget.Entry {
 	textarea := widget.NewMultiLineEntry()
+	textarea.TextStyle.Monospace = true
 	textarea.OnChanged = func(text string) {
 		textarea.SetMinRowsVisible(strings.Count(text, "\n"))
 		textarea.Refresh()
@@ -250,6 +251,8 @@ func createTab(config Config) *fyne.Container {
 			configuration := lintConfiguration(textareaConfiguration.Text)
 			updateTextareaConfiguration(textareaConfiguration, configuration)
 			err := updateConfigFile(config, configuration)
+
+			log.Println("Configuration of", config.Name)
 
 			if err != nil {
 				updateNotice(notice, fmt.Sprintf("Error while updating: %s", err), red, true, false)
