@@ -11,11 +11,19 @@ Wireguard GUI reads `/etc/wireguard/*.conf` and uses `wg-quick` to manage interf
 
 ## Installation
 
+### From sources
+
 ```
 git clone https://gitnet.fr/deblan/wireguard-gui.git
 cd wireguard-gui
 make
 ```
+
+### From binaries
+
+Builds are available for Linux (64 bits).
+
+Download the latest binary from [releases](https://gitnet.fr/deblan/wireguard-gui/releases).
 
 ## Usage
 
