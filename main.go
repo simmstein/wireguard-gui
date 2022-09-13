@@ -2,12 +2,6 @@ package main
 
 import (
 	"fmt"
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
-	"fyne.io/fyne/v2/widget"
 	"image/color"
 	"io/fs"
 	"log"
@@ -16,6 +10,24 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/widget"
+)
+
+var (
+	red         color.RGBA
+	green       color.RGBA
+	orange      color.RGBA
+	directory   string
+	configs     []Config
+	application fyne.App
+	window      fyne.Window
+	menu        *container.AppTabs
 )
 
 type Config struct {
@@ -23,20 +35,50 @@ type Config struct {
 	File string
 }
 
-var red color.RGBA
-var green color.RGBA
-var orange color.RGBA
+type ButtonCallback func()
 
 func main() {
 	red = color.RGBA{R: 156, G: 21, B: 21}
 	green = color.RGBA{R: 47, G: 156, B: 17}
 	orange = color.RGBA{R: 156, G: 106, B: 25}
 
-	application := app.New()
-	window := application.NewWindow("Wireguard GUI (deblan)")
-	configs := []Config{}
-	directory := "/etc/wireguard/"
+	application = app.New()
+	window = application.NewWindow("Wireguard GUI")
+	directory = "/etc/wireguard/"
+	menu = container.NewAppTabs()
 
+	err := initConfigs()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	initMenu()
+
+	content := container.New(layout.NewVBoxLayout(), menu)
+
+	window.SetContent(content)
+	window.Resize(fyne.NewSize(900, 400))
+	window.ShowAndRun()
+}
+
+func initMenu() {
+	tabs := make([]fyne.Container, len(configs))
+
+	for i, config := range configs {
+		tabs[i] = *createTab(config)
+	}
+
+	for i, config := range configs {
+		menu.Append(
+			container.NewTabItem(
+				config.Name,
+				&tabs[i],
+			),
+		)
+	}
+}
+
+func initConfigs() error {
 	err := filepath.WalkDir(directory, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -64,65 +106,40 @@ func main() {
 		return nil
 	})
 
-	if err != nil {
-		log.Fatalln(err)
+	return err
+}
+
+func toggleNotice(notice *canvas.Text, isVisible bool) {
+	notice.Hidden = !isVisible
+	notice.Refresh()
+}
+
+func updateNotice(notice *canvas.Text, text string, c color.Color, isVisible, isFlash bool) {
+	notice.Text = text
+	notice.Color = c
+	notice.Hidden = !isVisible
+	notice.Refresh()
+
+	if isFlash {
+		go func() {
+			time.Sleep(2 * time.Second)
+			toggleNotice(notice, false)
+		}()
 	}
 
-	menu := container.NewAppTabs()
-	tabs := make([]fyne.Container, len(configs))
-
-	for i, config := range configs {
-		tabs[i] = *createTab(config)
-	}
-
-	for i, config := range configs {
-		menu.Append(
-			container.NewTabItem(
-				config.Name,
-				&tabs[i],
-			),
-		)
-	}
-
-	content := container.New(layout.NewVBoxLayout(), menu)
-
-	window.SetContent(content)
-	window.Resize(fyne.NewSize(900, 400))
-	window.ShowAndRun()
+	log.Println(text)
 }
 
 func WgUp(config Config, notice *canvas.Text) {
-	notice.Hidden = false
-	notice.Text = fmt.Sprintf("Interface is starting")
-	notice.Color = orange
-	notice.Refresh()
-
+	updateNotice(notice, fmt.Sprintf("Interface is starting"), orange, true, false)
 	exec.Command("wg-quick", "up", config.Name).Output()
-
-	notice.Text = fmt.Sprintf("Interface is up")
-	notice.Color = green
-	notice.Refresh()
-
-	go func() {
-		time.Sleep(2 * time.Second)
-		notice.Hidden = true
-		notice.Refresh()
-	}()
+	updateNotice(notice, fmt.Sprintf("Interface is up"), green, true, true)
 }
 
 func WgDown(config Config, notice *canvas.Text) {
-	notice.Refresh()
-
-	notice.Hidden = false
-	notice.Text = fmt.Sprintf("Interface is stopping")
-	notice.Color = orange
-	notice.Refresh()
-
+	updateNotice(notice, fmt.Sprintf("Interface is stopping"), orange, true, false)
 	exec.Command("wg-quick", "down", config.Name).Output()
-
-	notice.Text = fmt.Sprintf("Interface is down")
-	notice.Color = green
-	notice.Refresh()
+	updateNotice(notice, fmt.Sprintf("Interface is down"), green, true, true)
 
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -136,61 +153,89 @@ func WgRestart(config Config, notice *canvas.Text) {
 	WgUp(config, notice)
 }
 
-func createTab(config Config) *fyne.Container {
+func lintConfiguration(configuration string) string {
+	configuration = strings.TrimSpace(configuration)
+	configuration = fmt.Sprintf("%s\n", configuration)
+
+	return configuration
+}
+
+func updateTextareaConfiguration(textarea *widget.Entry, content string) {
+	textarea.SetText(content)
+	textarea.OnChanged(content)
+}
+
+func updateConfigFile(config Config, content string) error {
+	return os.WriteFile(config.File, []byte(content), 600)
+}
+
+func createTextarea() *widget.Entry {
+	textarea := widget.NewMultiLineEntry()
+	textarea.OnChanged = func(text string) {
+		textarea.SetMinRowsVisible(strings.Count(text, "\n"))
+		textarea.Refresh()
+	}
+
+	return textarea
+}
+
+func createColoredButton(label string, c color.Color, callback ButtonCallback) *fyne.Container {
+	return container.NewMax(
+		canvas.NewRectangle(c),
+		widget.NewButton(label, callback),
+	)
+}
+
+func createNotice() *canvas.Text {
 	notice := canvas.NewText("", color.White)
 	notice.TextStyle.Bold = true
 
-	r1 := canvas.NewText("", color.Transparent)
-	r2 := canvas.NewText("", color.Transparent)
-	r1.TextSize = 5
-	r2.TextSize = 5
+	return notice
+}
 
+func createMargin() *canvas.Text {
+	text := canvas.NewText("", color.Transparent)
+	text.TextSize = 5
+
+	return text
+}
+
+func createTab(config Config) *fyne.Container {
 	data, err := os.ReadFile(config.File)
-
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	buttonStart := widget.NewButton("Start", func() {
+	notice := createNotice()
+
+	buttonStart := createColoredButton("Start", green, func() {
 		WgUp(config, notice)
 	})
 
-	buttonStop := widget.NewButton("Stop", func() {
+	buttonStop := createColoredButton("Stop", red, func() {
 		WgDown(config, notice)
 	})
 
-	buttonRestart := widget.NewButton("Restart", func() {
+	buttonRestart := createColoredButton("Restart", orange, func() {
 		WgRestart(config, notice)
 	})
 
-	buttonStartWrapper := container.NewMax(canvas.NewRectangle(green), buttonStart)
-	buttonStopWrapper := container.NewMax(canvas.NewRectangle(red), buttonStop)
-	buttonRestartWrapper := container.NewMax(canvas.NewRectangle(orange), buttonRestart)
-
 	top := container.New(
 		layout.NewVBoxLayout(),
-		r1,
+		createMargin(),
 		container.New(
 			layout.NewHBoxLayout(),
 			notice,
 			layout.NewSpacer(),
-			buttonStartWrapper,
-			buttonStopWrapper,
-			buttonRestartWrapper,
+			buttonStart,
+			buttonStop,
+			buttonRestart,
 		),
-		r2,
+		createMargin(),
 	)
 
-	configuration := string(data)
-
-	textareaConfiguration := widget.NewMultiLineEntry()
-	textareaConfiguration.SetText(configuration)
-	textareaConfiguration.SetMinRowsVisible(strings.Count(configuration, "\n"))
-
-	textareaConfiguration.OnChanged = func(text string) {
-		textareaConfiguration.SetMinRowsVisible(strings.Count(text, "\n"))
-		textareaConfiguration.Refresh()
-	}
+	textareaConfiguration := createTextarea()
+	updateTextareaConfiguration(textareaConfiguration, string(data))
 
 	form := &widget.Form{
 		Items: []*widget.FormItem{
@@ -200,29 +245,17 @@ func createTab(config Config) *fyne.Container {
 			},
 		},
 		OnSubmit: func() {
-			notice.Hidden = false
-			configuration := fmt.Sprintf("%s\n", textareaConfiguration.Text)
-			configuration = strings.TrimSpace(configuration)
-			textareaConfiguration.Text = configuration
-			err := os.WriteFile(config.File, []byte(configuration), 600)
+			toggleNotice(notice, false)
+
+			configuration := lintConfiguration(textareaConfiguration.Text)
+			updateTextareaConfiguration(textareaConfiguration, configuration)
+			err := updateConfigFile(config, configuration)
 
 			if err != nil {
-				log.Println(err)
-				notice.Text = fmt.Sprintf("Error while updating: %s", err)
-				notice.Color = red
-				notice.Refresh()
+				updateNotice(notice, fmt.Sprintf("Error while updating: %s", err), red, true, false)
 			} else {
-				notice.Text = fmt.Sprintf("Configuration updated")
-				notice.Color = green
-
-				go func() {
-					time.Sleep(2 * time.Second)
-					notice.Hidden = true
-					notice.Refresh()
-				}()
+				updateNotice(notice, fmt.Sprintf("Configuration updated"), green, true, true)
 			}
-
-			notice.Refresh()
 		},
 		SubmitText: "Save",
 	}
